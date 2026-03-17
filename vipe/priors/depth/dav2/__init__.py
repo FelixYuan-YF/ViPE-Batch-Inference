@@ -68,13 +68,13 @@ class DepthAnythingDepthModel(DepthEstimationModel):
         elif ckpt == "metric-outdoor":
             self.is_metric = True
             self.max_depth = 80.0
-            self.ckpt_url = f"hhttps://huggingface.co/depth-anything/Depth-Anything-V2-Metric-VKITTI-{url_name}/resolve/main/depth_anything_v2_metric_vkitti_{model}.pth?download=true"
+            self.ckpt_url = f"https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-VKITTI-{url_name}/resolve/main/depth_anything_v2_metric_vkitti_{model}.pth?download=true"
 
         else:
             raise ValueError("Invalid checkpoint name.")
 
         self.model = DepthAnythingV2(**self.model_config, max_depth=self.max_depth)
-        self.model.load_state_dict(torch.hub.load_state_dict_from_url(self.ckpt_url, map_location="cpu"))
+        self.model.load_state_dict(torch.hub.load_state_dict_from_url(self.ckpt_url, map_location="cpu", model_dir="./checkpoints/da2"))
         self.model.cuda().eval()
 
     @property

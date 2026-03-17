@@ -345,7 +345,11 @@ class MultiviewDepthProcessor(StreamProcessor):
                 )
 
             dav3_logger.level = 0  # Disable logging timing information
-            self.dav3_api = DepthAnything3.from_pretrained("depth-anything/DA3-GIANT")
+            try:
+                self.dav3_api = DepthAnything3.from_pretrained(f"./checkpoints/dav3/DA3-GIANT")
+            except:
+                self.dav3_api = DepthAnything3.from_pretrained("depth-anything/DA3-GIANT")
+                self.dav3_api.save_pretrained("./checkpoints/dav3/DA3-GIANT")
             self.dav3_api = self.dav3_api.cuda().eval()
 
     def update_attributes(self, previous_attributes: set[FrameAttribute]) -> set[FrameAttribute]:

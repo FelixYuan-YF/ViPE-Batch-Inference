@@ -57,7 +57,7 @@ class VideoDepthAnythingDepthModel(DepthEstimationModel):
 
         self.model = VideoDepthAnything(**self.model_config)
         self.model.load_state_dict(
-            torch.hub.load_state_dict_from_url(self.ckpt_url, map_location="cpu"),
+            torch.hub.load_state_dict_from_url(self.ckpt_url, map_location="cpu", model_dir="./checkpoints/vda"),
             strict=True,
         )
         self.model.cuda().eval()

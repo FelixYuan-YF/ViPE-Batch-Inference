@@ -115,7 +115,8 @@ class SuperPoint(nn.Module):
 
     def load_pretrained(self):
         state_dict = torch.hub.load_state_dict_from_url(
-            "https://github.com/rpautrat/SuperPoint/raw/refs/heads/master/weights/superpoint_v6_from_tf.pth"
+            "https://github.com/rpautrat/SuperPoint/raw/refs/heads/master/weights/superpoint_v6_from_tf.pth",
+            model_dir="./checkpoints/superpoint"
         )
         self.load_state_dict(state_dict)
         self.eval()

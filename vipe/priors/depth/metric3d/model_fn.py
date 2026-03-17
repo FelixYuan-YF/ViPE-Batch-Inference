@@ -99,7 +99,7 @@ def metric3d_convnext_tiny(pretrain=False, **kwargs):
     model = get_configured_monodepth_model(cfg)
     if pretrain:
         model.load_state_dict(
-            torch.hub.load_state_dict_from_url(ckpt_file)["model_state_dict"],
+            torch.hub.load_state_dict_from_url(ckpt_file, model_dir="./checkpoints/metric3d")["model_state_dict"],
             strict=False,
         )
     return model
@@ -121,7 +121,7 @@ def metric3d_convnext_large(pretrain=False, **kwargs):
     model = get_configured_monodepth_model(cfg)
     if pretrain:
         model.load_state_dict(
-            torch.hub.load_state_dict_from_url(ckpt_file)["model_state_dict"],
+            torch.hub.load_state_dict_from_url(ckpt_file, model_dir="./checkpoints/metric3d")["model_state_dict"],
             strict=False,
         )
     return model
@@ -143,7 +143,7 @@ def metric3d_vit_small(pretrain=False, **kwargs):
     model = get_configured_monodepth_model(cfg)
     if pretrain:
         model.load_state_dict(
-            torch.hub.load_state_dict_from_url(ckpt_file)["model_state_dict"],
+            torch.hub.load_state_dict_from_url(ckpt_file, model_dir="./checkpoints/metric3d")["model_state_dict"],
             strict=False,
         )
     return model
@@ -165,7 +165,7 @@ def metric3d_vit_large(pretrain=False, **kwargs):
     model = get_configured_monodepth_model(cfg)
     if pretrain:
         model.load_state_dict(
-            torch.hub.load_state_dict_from_url(ckpt_file)["model_state_dict"],
+            torch.hub.load_state_dict_from_url(ckpt_file, model_dir="./checkpoints/metric3d")["model_state_dict"],
             strict=False,
         )
     return model
@@ -187,7 +187,7 @@ def metric3d_vit_giant2(pretrain=False, **kwargs):
     model = get_configured_monodepth_model(cfg)
     if pretrain:
         model.load_state_dict(
-            torch.hub.load_state_dict_from_url(ckpt_file)["model_state_dict"],
+            torch.hub.load_state_dict_from_url(ckpt_file, model_dir="./checkpoints/metric3d")["model_state_dict"],
             strict=False,
         )
     return model

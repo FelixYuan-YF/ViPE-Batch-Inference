@@ -34,9 +34,8 @@ class GeoCalib(nn.Module):
             url = f"https://github.com/cvg/GeoCalib/releases/download/v1.0/geocalib-{weights}.tar"
 
             # load checkpoint
-            model_dir = f"{torch.hub.get_dir()}/geocalib"
             state_dict = torch.hub.load_state_dict_from_url(
-                url, model_dir, map_location="cpu", file_name=f"{weights}.tar"
+                url, map_location="cpu", file_name=f"{weights}.tar", model_dir="./checkpoints/geocalib"
             )
         elif Path(weights).exists():
             state_dict = torch.load(weights, map_location="cpu")

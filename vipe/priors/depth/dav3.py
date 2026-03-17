@@ -41,7 +41,11 @@ class DepthAnything3Model(DepthEstimationModel):
             )
 
         dav3_logger.level = 0  # Disable logging timing information
-        self.model = DepthAnything3.from_pretrained("depth-anything/DA3METRIC-LARGE")
+        try:
+            self.model = DepthAnything3.from_pretrained("./checkpoints/dav3/DA3METRIC-LARGE")
+        except:
+            self.model = DepthAnything3.from_pretrained("depth-anything/DA3METRIC-LARGE")
+            self.model.save_pretrained("./checkpoints/dav3/DA3METRIC-LARGE")
         self.model = self.model.cuda().eval()
 
     @property

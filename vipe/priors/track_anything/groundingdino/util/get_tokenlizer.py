@@ -16,7 +16,11 @@ def get_tokenlizer(text_encoder_type):
                 "Unknown type of text_encoder_type: {}".format(type(text_encoder_type))
             )
 
-    tokenizer = AutoTokenizer.from_pretrained(text_encoder_type)
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(f"./checkpoints/groundingdino/{text_encoder_type}")
+    except:
+        tokenizer = AutoTokenizer.from_pretrained(text_encoder_type)
+        tokenizer.save_pretrained(f"./checkpoints/groundingdino/{text_encoder_type}")
     return tokenizer
 
 
@@ -24,8 +28,18 @@ def get_pretrained_language_model(text_encoder_type):
     if text_encoder_type == "bert-base-uncased" or (
         os.path.isdir(text_encoder_type) and os.path.exists(text_encoder_type)
     ):
-        return BertModel.from_pretrained(text_encoder_type)
+        try:
+            return BertModel.from_pretrained(f"./checkpoints/groundingdino/{text_encoder_type}")
+        except:
+            model = BertModel.from_pretrained(text_encoder_type)
+            model.save_pretrained(f"./checkpoints/groundingdino/{text_encoder_type}")
+            return model
     if text_encoder_type == "roberta-base":
-        return RobertaModel.from_pretrained(text_encoder_type)
+        try:
+            return RobertaModel.from_pretrained(f"./checkpoints/groundingdino/{text_encoder_type}")
+        except:
+            model = RobertaModel.from_pretrained(text_encoder_type)
+            model.save_pretrained(f"./checkpoints/groundingdino/{text_encoder_type}")
+            return model
 
     raise ValueError("Unknown text_encoder_type {}".format(text_encoder_type))

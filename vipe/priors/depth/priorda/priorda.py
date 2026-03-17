@@ -52,7 +52,7 @@ class PriorDepthAnything(nn.Module):
             raise ValueError(f"{self.args.frozen_model_size} coming soon...")
         fmde_name = f"depth_anything_v2_{self.args.frozen_model_size}.pth"  # Download model checkpoints
         if fmde_dir is None:
-            fmde_path = hf_hub_download(repo_id=self.args.repo_name, filename=fmde_name)
+            fmde_path = hf_hub_download(repo_id=self.args.repo_name, filename=fmde_name, local_dir="./checkpoints/priorda")
         else:
             fmde_path = os.path.join(fmde_dir, fmde_name)
 
@@ -65,7 +65,7 @@ class PriorDepthAnything(nn.Module):
                 raise ValueError(f"{self.args.conditioned_model_size} coming soon...")
             cmde_name = f"depth_anything_v2_{self.args.conditioned_model_size}.pth"  # Download model checkpoints
             if cmde_dir is None:
-                cmde_path = hf_hub_download(repo_id=self.args.repo_name, filename=cmde_name)
+                cmde_path = hf_hub_download(repo_id=self.args.repo_name, filename=cmde_name, local_dir="./checkpoints/priorda")
             else:
                 cmde_path = os.path.join(cmde_dir, cmde_name)
 
@@ -82,7 +82,7 @@ class PriorDepthAnything(nn.Module):
     def load_checkpoints(self, model, ckpt_dir, device="cuda:0"):
         ckpt_name = f"prior_depth_anything_{self.args.conditioned_model_size}.pth"
         if ckpt_dir is None:
-            ckpt_path = hf_hub_download(repo_id=self.args.repo_name, filename=ckpt_name)
+            ckpt_path = hf_hub_download(repo_id=self.args.repo_name, filename=ckpt_name, local_dir="./checkpoints/priorda")
         else:
             ckpt_path = os.path.join(ckpt_dir, ckpt_name)
 

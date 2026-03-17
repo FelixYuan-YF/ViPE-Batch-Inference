@@ -43,7 +43,11 @@ class MogeModel(DepthEstimationModel):
             raise RuntimeError(
                 "moge is not found in the environment. You can install it via pip install `git+https://github.com/microsoft/MoGe.git`"
             )
-        self.model = MoGeModel.from_pretrained("Ruicheng/moge-vitl")
+        try:
+            self.model = MoGeModel.from_pretrained("./checkpoints/moge/moge-vitl")
+        except:
+            self.model = MoGeModel.from_pretrained("Ruicheng/moge-vitl")
+            self.model.save_pretrained("./checkpoints/moge/moge-vitl")
         self.model = self.model.cuda().eval()
 
     @property
