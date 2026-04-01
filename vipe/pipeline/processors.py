@@ -69,13 +69,17 @@ class GeoCalibIntrinsicsProcessor(IntrinsicEstimationProcessor):
         video_stream: VideoStream,
         gap_sec: float = 1.0,
         camera_type: CameraType = CameraType.PINHOLE,
+        model: "GeoCalib | None" = None,
     ) -> None:
         super().__init__(video_stream, gap_sec)
 
         is_pinhole = camera_type == CameraType.PINHOLE
-        weights = "pinhole" if is_pinhole else "distorted"
 
-        model = GeoCalib(weights=weights).cuda()
+        # Reuse an externally provided model instance to avoid reloading weights.
+        if model is None:
+            weights = "pinhole" if is_pinhole else "distorted"
+            model = GeoCalib(weights=weights).cuda()
+
         indexable_stream = CachedVideoStream(video_stream)
 
         if is_pinhole:
@@ -154,6 +158,9 @@ class AdaptiveDepthProcessor(StreamProcessor):
         view_idx: int = 0,
         model: str = "adaptive_unidepth-l_svda",
         share_depth_model: bool = False,
+        video_depth_model: "VideoDepthAnythingDepthModel | None" = None,
+        depth_model=None,
+        prompt_model: "PriorDAModel | None" = None,
     ):
         super().__init__()
         self.slam_output = slam_output
@@ -164,19 +171,26 @@ class AdaptiveDepthProcessor(StreamProcessor):
         self.model = model
 
         try:
-            prefix, metric_model, video_model = model.split("_")
-            assert video_model in ["svda", "vda"]
-            self.video_depth_model = VideoDepthAnythingDepthModel(model="vits" if video_model == "svda" else "vitl")
+            prefix, metric_model, video_model_name = model.split("_")
+            assert video_model_name in ["svda", "vda"]
+            # Reuse an externally provided VideoDepthAnything model if available.
+            if video_depth_model is not None:
+                self.video_depth_model = video_depth_model
+            else:
+                self.video_depth_model = VideoDepthAnythingDepthModel(
+                    model="vits" if video_model_name == "svda" else "vitl"
+                )
 
         except ValueError:
             prefix, metric_model = model.split("_")
-            video_model = None
             self.video_depth_model = None
 
         assert prefix == "adaptive", "Model name should start with 'adaptive_'"
 
-        self.depth_model = make_depth_model(metric_model)
-        self.prompt_model = PriorDAModel()
+        # Reuse externally provided metric depth model if available.
+        self.depth_model = depth_model if depth_model is not None else make_depth_model(metric_model)
+        # Reuse externally provided PriorDA model if available.
+        self.prompt_model = prompt_model if prompt_model is not None else PriorDAModel()
         self.update_momentum = 0.99
 
     def __call__(self, frame_idx: int, frame: VideoFrame) -> VideoFrame:
@@ -320,6 +334,7 @@ class MultiviewDepthProcessor(StreamProcessor):
         window_size: int = 10,                  # Practically this should be as large as possible if memory permits.
         overlap_size: int = 3,
         secondary_keyframe: bool = False,       # This is found to cause jittering for some scenes due to abrupt context changes.
+        dav3_api=None,
     ):
         super().__init__()
         self.slam_output = slam_output
@@ -336,21 +351,25 @@ class MultiviewDepthProcessor(StreamProcessor):
         self.n_passes_required = 2
 
         if self.model == "mvd_dav3":
-            try:
-                from depth_anything_3.api import DepthAnything3
-                from depth_anything_3.api import logger as dav3_logger
-            except ModuleNotFoundError:
-                raise ModuleNotFoundError(
-                    "depth-anything-3 not found. Please reinstall vipe with `pip install --no-build-isolation -e .[dav3]`"
-                )
+            # Reuse an externally provided DAv3 model instance if available.
+            if dav3_api is not None:
+                self.dav3_api = dav3_api
+            else:
+                try:
+                    from depth_anything_3.api import DepthAnything3
+                    from depth_anything_3.api import logger as dav3_logger
+                except ModuleNotFoundError:
+                    raise ModuleNotFoundError(
+                        "depth-anything-3 not found. Please reinstall vipe with `pip install --no-build-isolation -e .[dav3]`"
+                    )
 
-            dav3_logger.level = 0  # Disable logging timing information
-            try:
-                self.dav3_api = DepthAnything3.from_pretrained(f"./checkpoints/dav3/DA3-GIANT")
-            except:
-                self.dav3_api = DepthAnything3.from_pretrained("depth-anything/DA3-GIANT")
-                self.dav3_api.save_pretrained("./checkpoints/dav3/DA3-GIANT")
-            self.dav3_api = self.dav3_api.cuda().eval()
+                dav3_logger.level = 0  # Disable logging timing information
+                try:
+                    self.dav3_api = DepthAnything3.from_pretrained(f"./checkpoints/dav3/DA3-GIANT")
+                except:
+                    self.dav3_api = DepthAnything3.from_pretrained("depth-anything/DA3-GIANT")
+                    self.dav3_api.save_pretrained("./checkpoints/dav3/DA3-GIANT")
+                self.dav3_api = self.dav3_api.cuda().eval()
 
     def update_attributes(self, previous_attributes: set[FrameAttribute]) -> set[FrameAttribute]:
         return previous_attributes | {FrameAttribute.METRIC_DEPTH}

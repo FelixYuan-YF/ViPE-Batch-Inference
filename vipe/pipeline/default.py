@@ -23,6 +23,10 @@ import torch
 
 from omegaconf import DictConfig
 
+from vipe.priors.depth import make_depth_model
+from vipe.priors.depth.priorda import PriorDAModel
+from vipe.priors.depth.videodepthanything import VideoDepthAnythingDepthModel
+from vipe.priors.geocalib import GeoCalib
 from vipe.slam.system import SLAMOutput, SLAMSystem
 from vipe.streams.base import (
     AssignAttributesProcessor,
@@ -59,6 +63,60 @@ class DefaultAnnotationPipeline(Pipeline):
         self.out_path.mkdir(exist_ok=True, parents=True)
         self.camera_type = CameraType(self.init_cfg.camera_type)
 
+        # ------------------------------------------------------------------
+        # Pre-load all stateless models once so they are reused across
+        # multiple video streams without reloading weights each time.
+        # ------------------------------------------------------------------
+
+        # GeoCalib: stateless calibration model
+        is_pinhole = self.camera_type == CameraType.PINHOLE
+        geocalib_weights = "pinhole" if is_pinhole else "distorted"
+        logger.info(f"Loading GeoCalib model (weights={geocalib_weights}) ...")
+        self._geocalib_model = GeoCalib(weights=geocalib_weights).cuda()
+
+        # Depth models used in the post-processing stage
+        self._video_depth_model = None   # VideoDepthAnything (VDA / SVDA)
+        self._metric_depth_model = None  # Metric depth model (unidepth / metric3d / moge / dav3)
+        self._prompt_model = None        # PriorDA model
+        self._dav3_api = None            # DepthAnything3 for MultiviewDepthProcessor
+
+        depth_align_model: str | None = self.post_cfg.depth_align_model
+        if depth_align_model is not None:
+            if depth_align_model.startswith("mvd_"):
+                # MultiviewDepthProcessor path
+                if depth_align_model == "mvd_dav3":
+                    try:
+                        from depth_anything_3.api import DepthAnything3
+                        from depth_anything_3.api import logger as dav3_logger
+                    except ModuleNotFoundError:
+                        raise ModuleNotFoundError(
+                            "depth-anything-3 not found. Please reinstall vipe with "
+                            "`pip install --no-build-isolation -e .[dav3]`"
+                        )
+                    dav3_logger.level = 0
+                    logger.info("Loading DepthAnything3 (DAv3-GIANT) model ...")
+                    try:
+                        self._dav3_api = DepthAnything3.from_pretrained("./checkpoints/dav3/DA3-GIANT")
+                    except Exception:
+                        self._dav3_api = DepthAnything3.from_pretrained("depth-anything/DA3-GIANT")
+                        self._dav3_api.save_pretrained("./checkpoints/dav3/DA3-GIANT")
+                    self._dav3_api = self._dav3_api.cuda().eval()
+            else:
+                # AdaptiveDepthProcessor path
+                try:
+                    prefix, metric_model, video_model_name = depth_align_model.split("_")
+                    assert video_model_name in ["svda", "vda"]
+                    vda_model_size = "vits" if video_model_name == "svda" else "vitl"
+                    logger.info(f"Loading VideoDepthAnything model (size={vda_model_size}) ...")
+                    self._video_depth_model = VideoDepthAnythingDepthModel(model=vda_model_size)
+                except ValueError:
+                    prefix, metric_model = depth_align_model.split("_")
+
+                logger.info(f"Loading metric depth model ({metric_model}) ...")
+                self._metric_depth_model = make_depth_model(metric_model)
+                logger.info("Loading PriorDA model ...")
+                self._prompt_model = PriorDAModel()
+
     def _add_init_processors(self, video_stream: VideoStream) -> ProcessedVideoStream:
         init_processors: list[StreamProcessor] = []
 
@@ -69,8 +127,13 @@ class DefaultAnnotationPipeline(Pipeline):
         assert FrameAttribute.METRIC_DEPTH not in video_stream.attributes()
         assert FrameAttribute.INSTANCE not in video_stream.attributes()
 
-        init_processors.append(GeoCalibIntrinsicsProcessor(video_stream, camera_type=self.camera_type))
+        # Pass the pre-loaded GeoCalib model to avoid reloading weights.
+        init_processors.append(
+            GeoCalibIntrinsicsProcessor(video_stream, camera_type=self.camera_type, model=self._geocalib_model)
+        )
         if self.init_cfg.instance is not None:
+            # TrackAnythingProcessor is stateful (tracks objects across frames),
+            # so it must be re-created for every video.
             init_processors.append(
                 TrackAnythingProcessor(
                     self.init_cfg.instance.phrases,
@@ -93,9 +156,22 @@ class DefaultAnnotationPipeline(Pipeline):
         ]
         if (depth_align_model := self.post_cfg.depth_align_model) is not None:
             if depth_align_model.startswith("mvd_"):
-                post_processors.append(MultiviewDepthProcessor(slam_output, model=depth_align_model))
+                # Pass the pre-loaded DAv3 model to avoid reloading weights.
+                post_processors.append(
+                    MultiviewDepthProcessor(slam_output, model=depth_align_model, dav3_api=self._dav3_api)
+                )
             else:
-                post_processors.append(AdaptiveDepthProcessor(slam_output, view_idx, depth_align_model))
+                # Pass the pre-loaded depth models to avoid reloading weights.
+                post_processors.append(
+                    AdaptiveDepthProcessor(
+                        slam_output,
+                        view_idx,
+                        depth_align_model,
+                        video_depth_model=self._video_depth_model,
+                        depth_model=self._metric_depth_model,
+                        prompt_model=self._prompt_model,
+                    )
+                )
         return ProcessedVideoStream(video_stream, post_processors)
 
     def run(self, video_data: VideoStream | MultiviewVideoList) -> AnnotationPipelineOutput:
